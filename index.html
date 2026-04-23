@@ -580,22 +580,36 @@
             loadGamesFromDB();
             loadProfile();
         };
+        // AdMob Plugin ko import karein (agar module use kar rahe hain)
+// Normal HTML mein direct Capacitor community plugin ka use hota hai
+
+async function setupAds() {
+    // 1. AdMob ko shuru karein
+    await capacitorCommunityAdmob.AdMob.initialize();
+
+    // 2. Banner Ad dikhayein
+    await capacitorCommunityAdmob.AdMob.showBanner({
+        adId: 'ca-app-pub-3113275088766608/8812801925', // Aapki Banner ID
+        position: 'BOTTOM_CENTER', // Ad niche dikhega
+        margin: 0,
+        isTesting: false // Live ads ke liye false rakhein
+    });
+
+    // 3. Interstitial Ad (Full Screen) Load karein
+    await capacitorCommunityAdmob.AdMob.prepareInterstitial({
+        adId: 'ca-app-pub-3113275088766608/2247393575', // Aapki Interstitial ID
+        isTesting: false
+    });
+}
+
+// Interstitial Ad dikhane ke liye function (ise button click par chalayein)
+async function showFullAd() {
+    await capacitorCommunityAdmob.AdMob.showInterstitial();
+}
+
+// App start hote hi ads setup karein
+document.addEventListener('deviceready', setupAds);
+
     </script>
-    <script src="capacitor.js"></script>
-
-<script>
-document.addEventListener('deviceready', async () => {
-  // AdMob ko chalu karne ke liye
-  const { AdMob } = Capacitor.Plugins;
-  await AdMob.initialize();
-
-  // Banner dikhane ke liye
-  await AdMob.showBanner({
-    adId: 'ca-app-pub-3940256099942544/6300978111', // Test Banner ID
-    position: 'BOTTOM_CENTER',
-    margin: 0
-  });
-});
-</script>
 </body>
 </html>
