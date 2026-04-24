@@ -8,7 +8,14 @@
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    
+
+    <!-- Capacitor Community AdMob Plugin Script -->
+    <!-- Ensure you have this plugin installed in your Capacitor project:
+         npm install @capacitor-community/admob
+         npx cap sync
+    -->
+    <script src="https://unpkg.com/@capacitor-community/admob"></script>
+
     <style>
         :root {
             --primary-blue: #1a237e;
@@ -417,7 +424,7 @@
 
     <!-- ===== JAVASCRIPT LOGIC ===== -->
     <script>
-        // 1. Firebase Configuration (Connect your Database)
+        // --- Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyAn0dI8lFbIxkwNdCfxw0yxxU0NrFN8AQE",
             authDomain: "dhurandhar-ec0a0.firebaseapp.com",
@@ -430,7 +437,85 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Backup static games in case Firebase is empty
+        // --- AdMob Configuration ---
+        // IMPORTANT: Replace these with your actual Ad Unit IDs
+        const BANNER_AD_ID = 'ca-app-pub-3113275088766608/8812801925'; // Replace with your Banner Ad Unit ID
+        const INTERSTITIAL_AD_ID = 'ca-app-pub-3113275088766608/2247393575'; // Replace with your Interstitial Ad Unit ID
+
+        // Ad Mob Variables
+        let lastAdTime = 0;
+        const adInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+        // Check if an interstitial ad should be shown based on time
+        function shouldShowInterstitialAd() {
+            const now = Date.now();
+            return now - lastAdTime > adInterval;
+        }
+
+        // Setup AdMob Banner and Interstitial
+        async function setupAds() {
+            console.log("Setting up AdMob...");
+            try {
+                // 1. Initialize AdMob
+                await capacitorCommunityAdmob.AdMob.initialize();
+                console.log("AdMob initialized successfully.");
+
+                // 2. Show Banner Ad
+                await capacitorCommunityAdmob.AdMob.showBanner({
+                    adId: BANNER_AD_ID,
+                    position: 'BOTTOM_CENTER',
+                    margin: 0,
+                    isTesting: false // Set to true for testing, false for live ads
+                });
+                console.log("Banner ad shown.");
+
+                // 3. Prepare Interstitial Ad
+                await capacitorCommunityAdmob.AdMob.prepareInterstitial({
+                    adId: INTERSTITIAL_AD_ID,
+                    isTesting: false // Set to true for testing, false for live ads
+                });
+                console.log("Interstitial ad prepared.");
+
+            } catch (error) {
+                console.error("Error setting up AdMob:", error);
+            }
+        }
+
+        // Function to show the Interstitial Ad
+        async function showFullAd() {
+            console.log("Attempting to show interstitial ad...");
+            if (shouldShowInterstitialAd()) {
+                try {
+                    const isReady = await capacitorCommunityAdmob.AdMob.isInterstitialReady();
+                    if (isReady) {
+                        await capacitorCommunityAdmob.AdMob.showInterstitial();
+                        lastAdTime = Date.now(); // Update last ad time only if shown
+                        console.log("Interstitial ad shown.");
+                        // Re-prepare the ad after showing it
+                        await capacitorCommunityAdmob.AdMob.prepareInterstitial({
+                            adId: INTERSTITIAL_AD_ID,
+                            isTesting: false
+                        });
+                        console.log("Interstitial ad re-prepared.");
+                    } else {
+                        console.log("Interstitial ad is not ready yet.");
+                        // Optionally, try to re-prepare if not ready
+                        await capacitorCommunityAdmob.AdMob.prepareInterstitial({
+                            adId: INTERSTITIAL_AD_ID,
+                            isTesting: false
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error showing interstitial ad:", error);
+                    // Reset lastAdTime if an error occurs to retry later
+                    lastAdTime = Date.now() - adInterval; // Allow retry soon
+                }
+            } else {
+                console.log("Interstitial ad not shown: interval not met.");
+            }
+        }
+
+        // --- Game Logic ---
         const defaultGames = [
             { id: "g1", name: "Ludo Master", onlineCount: 18, iconUrl: "https://i.ibb.co/L5tNn9G/ludo.png", gameUrl: "https://poki.com/en/ludo" },
             { id: "g2", name: "Space Shooter", onlineCount: 12, iconUrl: "https://i.ibb.co/zH7b9Wz/space-shooter-icon.png", gameUrl: "#" },
@@ -439,7 +524,6 @@
 
         let allGamesData = [];
 
-        // 2. Fetch Games From Firebase
         function loadGamesFromDB() {
             db.ref('games').on('value', (snapshot) => {
                 const data = snapshot.val();
@@ -456,7 +540,6 @@
             });
         }
 
-        // 3. Render Games to HTML
         function renderGames(gamesArray) {
             const listDiv = document.getElementById('game-list');
             listDiv.innerHTML = ''; 
@@ -483,15 +566,15 @@
             });
         }
 
-        // 4. Search Filter
         function searchGames() {
             let query = document.getElementById('searchInput').value.toLowerCase();
             let filtered = allGamesData.filter(g => g.name.toLowerCase().includes(query));
             renderGames(filtered);
         }
 
-        // 5. Play Button Action
-        function playGame(url, name) {
+        async function playGame(url, name) {
+            await showFullAd(); // Show ad before playing game
+
             if(url && url !== "#") {
                 window.open(url, '_blank');
             } else {
@@ -499,12 +582,17 @@
             }
         }
 
-        // 6. Navigation Tabs logic
+        // --- Navigation and Profile Logic ---
         function switchTab(tab) {
             const home = document.getElementById('home-page');
             const profile = document.getElementById('profile-page');
             const navHome = document.getElementById('nav-home');
             const navProfile = document.getElementById('nav-profile');
+
+            // Show ad before switching tabs
+            if (!home.classList.contains('hidden') || !profile.classList.contains('hidden')) { // Only show if a tab is currently visible
+                showFullAd();
+            }
 
             if(tab === 'home') {
                 home.classList.remove('hidden');
@@ -519,7 +607,6 @@
             }
         }
 
-        // 7. Profile Logic (Load, Preview Image, Save)
         function loadProfile() {
             db.ref('profile').on('value', (snap) => {
                 const data = snap.val();
@@ -548,10 +635,13 @@
             const imgUrl = document.getElementById('profilePreview').src;
             db.ref('profile').set({ name: name, imageUrl: imgUrl }).then(() => {
                 alert("Profile Saved!");
+            }).catch(error => {
+                console.error("Error saving profile:", error);
+                alert("Failed to save profile. Please try again.");
             });
         }
 
-        // 8. Dark Mode / Light Mode Logic
+        // --- Theme Logic ---
         function toggleTheme() {
             const isDark = document.getElementById('themeToggle').checked;
             if(isDark) {
@@ -574,42 +664,23 @@
             }
         }
 
-        // Init App On Load
+        // --- Initialization ---
         window.onload = () => {
             initTheme();
             loadGamesFromDB();
             loadProfile();
+
+            // Initial call to set up ads when the app loads
+            // For Capacitor, 'deviceready' is preferred over 'window.onload' for native plugins
+            // If running this as a pure web page, window.onload is fine.
+            // For Capacitor, the setupAds will be triggered by the deviceready event below.
         };
-        // AdMob Plugin ko import karein (agar module use kar rahe hain)
-// Normal HTML mein direct Capacitor community plugin ka use hota hai
 
-async function setupAds() {
-    // 1. AdMob ko shuru karein
-    await capacitorCommunityAdmob.AdMob.initialize();
-
-    // 2. Banner Ad dikhayein
-    await capacitorCommunityAdmob.AdMob.showBanner({
-        adId: 'ca-app-pub-3113275088766608/8812801925', // Aapki Banner ID
-        position: 'BOTTOM_CENTER', // Ad niche dikhega
-        margin: 0,
-        isTesting: false // Live ads ke liye false rakhein
-    });
-
-    // 3. Interstitial Ad (Full Screen) Load karein
-    await capacitorCommunityAdmob.AdMob.prepareInterstitial({
-        adId: 'ca-app-pub-3113275088766608/2247393575', // Aapki Interstitial ID
-        isTesting: false
-    });
-}
-
-// Interstitial Ad dikhane ke liye function (ise button click par chalayein)
-async function showFullAd() {
-    await capacitorCommunityAdmob.AdMob.showInterstitial();
-}
-
-// App start hote hi ads setup karein
-document.addEventListener('deviceready', setupAds);
-
+        // Listen for the Capacitor device ready event to initialize AdMob
+        document.addEventListener('deviceready', () => {
+            console.log('Capacitor device is ready.');
+            setupAds();
+        });
     </script>
 </body>
 </html>
