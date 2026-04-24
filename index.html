@@ -8,12 +8,7 @@
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-    <!-- AdMob Capacitor Plugin - Assumes running in a Capacitor/Cordova environment -->
-    <!-- This script would typically be handled by your Capacitor build process.
-         For a pure web app, you'd use Google Publisher Tag or AdSense. -->
-    <script src="https://unpkg.com/@capacitor-community/admob"></script>
-
+    
     <style>
         :root {
             --primary-blue: #1a237e;
@@ -359,10 +354,10 @@
 
         <!-- MAIN CONTENT AREA -->
         <div class="content" id="main-content">
-
+            
             <!-- ====== HOME PAGE ====== -->
             <div id="home-page">
-
+                
                 <!-- Search -->
                 <div class="search-box">
                     <i class="fas fa-search"></i>
@@ -382,7 +377,7 @@
                 <div class="profile-card">
                     <h2>User Profile</h2>
                     <img id="profilePreview" src="https://via.placeholder.com/150" class="profile-img">
-
+                    
                     <div class="input-group">
                         <label>Your Name</label>
                         <input type="text" id="profileName" placeholder="Enter full name">
@@ -443,91 +438,6 @@
         ];
 
         let allGamesData = [];
-        let interstitialAdInterval;
-        let canShowInterstitial = true; // Flag to prevent multiple shows in quick succession
-
-        // --- AdMob Functions ---
-        // These functions assume you are running in a Capacitor/Cordova environment
-        // where the @capacitor-community/admob plugin is installed and configured.
-
-        async function setupAds() {
-            console.log("Setting up AdMob...");
-            try {
-                // 1. AdMob ko shuru karein
-                await window.AdMob.initialize('ca-app-pub-3113275088766608~7847920787', { // Your App ID
-                    isTesting: false // Set to true for testing, false for live
-                });
-                console.log("AdMob initialized.");
-
-                // 2. Banner Ad dikhayein (Optional)
-                // await window.AdMob.showBanner({
-                //     adId: 'ca-app-pub-3113275088766608/8812801925', // Aapki Banner ID
-                //     position: 'BOTTOM_CENTER', // Ad niche dikhega
-                //     margin: 0,
-                // });
-                // console.log("Banner Ad shown.");
-
-                // 3. Interstitial Ad (Full Screen) Load karein
-                await window.AdMob.prepareInterstitial({
-                    adId: 'ca-app-pub-3113275088766608/2247393575', // Aapki Interstitial ID
-                    isTesting: false // Set to true for testing, false for live
-                });
-                console.log("Interstitial Ad prepared.");
-
-                // 4. Interstitial Ads har 5 minute mein chalane ka timer set karein
-                startInterstitialTimer();
-
-            } catch (error) {
-                console.error("Error setting up AdMob:", error);
-            }
-        }
-
-        function startInterstitialTimer() {
-            const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
-            interstitialAdInterval = setInterval(async () => {
-                console.log("Checking to show timed interstitial ad...");
-                if (canShowInterstitial) {
-                    await showFullAd();
-                }
-            }, fiveMinutes);
-            console.log("Interstitial timer started.");
-        }
-
-        // Interstitial Ad dikhane ke liye function
-        async function showFullAd() {
-            try {
-                const isReady = await window.AdMob.isInterstitialReady();
-                if (isReady) {
-                    console.log("Showing interstitial ad...");
-                    canShowInterstitial = false; // Prevent showing immediately again
-                    await window.AdMob.showInterstitial();
-                    console.log("Interstitial ad displayed.");
-
-                    // Re-prepare the ad for the next show after it's closed
-                    window.AdMob.prepareInterstitial({
-                        adId: 'ca-app-pub-3113275088766608/2247393575', // Aapki Interstitial ID
-                        isTesting: false
-                    }).then(() => console.log("Interstitial re-prepared."));
-
-                    // Reset the flag after a short delay to allow it to be shown again by timer/click
-                    setTimeout(() => {
-                        canShowInterstitial = true;
-                    }, 30000); // Allow 30 seconds before it can be shown again, adjust as needed
-                } else {
-                    console.log("Interstitial ad is not ready yet.");
-                    // Optionally, re-prepare if not ready
-                    window.AdMob.prepareInterstitial({
-                        adId: 'ca-app-pub-3113275088766608/2247393575',
-                        isTesting: false
-                    });
-                }
-            } catch (error) {
-                console.error("Error showing interstitial ad:", error);
-            }
-        }
-
-        // --- End AdMob Functions ---
-
 
         // 2. Fetch Games From Firebase
         function loadGamesFromDB() {
@@ -549,7 +459,7 @@
         // 3. Render Games to HTML
         function renderGames(gamesArray) {
             const listDiv = document.getElementById('game-list');
-            listDiv.innerHTML = '';
+            listDiv.innerHTML = ''; 
 
             if(gamesArray.length === 0) {
                 listDiv.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-muted);">No Game Found!</p>';
@@ -559,7 +469,7 @@
             gamesArray.forEach(game => {
                 const img = game.iconUrl || 'https://via.placeholder.com/60';
                 const online = game.onlineCount || 0;
-
+                
                 listDiv.innerHTML += `
                     <div class="game-item">
                         <img src="${img}" alt="${game.name}">
@@ -582,23 +492,10 @@
 
         // 5. Play Button Action
         function playGame(url, name) {
-            // Trigger interstitial ad before navigating (if it's ready)
-            if (canShowInterstitial) {
-                showFullAd().then(() => {
-                    // Proceed only after ad has been shown or if it wasn't ready/showable
-                    if(url && url !== "#") {
-                        window.open(url, '_blank');
-                    } else {
-                        alert(`Opening ${name}...`);
-                    }
-                });
+            if(url && url !== "#") {
+                window.open(url, '_blank');
             } else {
-                // If ad is not ready/showable, proceed directly
-                if(url && url !== "#") {
-                    window.open(url, '_blank');
-                } else {
-                    alert(`Opening ${name}...`);
-                }
+                alert(`Opening ${name}...`);
             }
         }
 
@@ -678,39 +575,40 @@
         }
 
         // Init App On Load
-        // The 'deviceready' event is crucial for Capacitor/Cordova
-        document.addEventListener('deviceready', () => {
-            console.log("Device is ready. Initializing app...");
+        window.onload = () => {
             initTheme();
             loadGamesFromDB();
             loadProfile();
-            setupAds(); // Call setupAds after device is ready
-        }, false);
+        };
+        // AdMob Plugin ko import karein (agar module use kar rahe hain)
+// Normal HTML mein direct Capacitor community plugin ka use hota hai
 
-        // For browsers or environments that don't fire deviceready,
-        // we can use a fallback or simply call the init functions.
-        // This is less critical if you are sure you'll always build with Capacitor.
-        if (typeof window.Capacitor === 'undefined') {
-            // This means we are likely in a browser, not a Capacitor app.
-            // AdMob will not work here.
-            console.warn("Not running in a Capacitor environment. AdMob will not function.");
-            // You might still want to init other parts of the app if possible
-            initTheme();
-            loadGamesFromDB();
-            loadProfile();
-        }
+async function setupAds() {
+    // 1. AdMob ko shuru karein
+    await capacitorCommunityAdmob.AdMob.initialize();
 
-        // Optional: Clear interval when the app is paused or goes to background
-        // (Requires Capacitor background mode plugin or similar)
-        // document.addEventListener('pause', () => {
-        //     if (interstitialAdInterval) {
-        //         clearInterval(interstitialAdInterval);
-        //         console.log("Interstitial timer paused.");
-        //     }
-        // });
-        // document.addEventListener('resume', () => {
-        //     startInterstitialTimer(); // Restart timer when app resumes
-        // });
+    // 2. Banner Ad dikhayein
+    await capacitorCommunityAdmob.AdMob.showBanner({
+        adId: 'ca-app-pub-3113275088766608/8812801925', // Aapki Banner ID
+        position: 'BOTTOM_CENTER', // Ad niche dikhega
+        margin: 0,
+        isTesting: false // Live ads ke liye false rakhein
+    });
+
+    // 3. Interstitial Ad (Full Screen) Load karein
+    await capacitorCommunityAdmob.AdMob.prepareInterstitial({
+        adId: 'ca-app-pub-3113275088766608/2247393575', // Aapki Interstitial ID
+        isTesting: false
+    });
+}
+
+// Interstitial Ad dikhane ke liye function (ise button click par chalayein)
+async function showFullAd() {
+    await capacitorCommunityAdmob.AdMob.showInterstitial();
+}
+
+// App start hote hi ads setup karein
+document.addEventListener('deviceready', setupAds);
 
     </script>
 </body>
