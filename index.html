@@ -8,7 +8,9 @@
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    
+    <!-- Capacitor Community AdMob Plugin -->
+    <script src="https://unpkg.com/@capacitor-community/admob"></script>
+
     <style>
         :root {
             --primary-blue: #1a237e;
@@ -354,10 +356,10 @@
 
         <!-- MAIN CONTENT AREA -->
         <div class="content" id="main-content">
-            
+
             <!-- ====== HOME PAGE ====== -->
             <div id="home-page">
-                
+
                 <!-- Search -->
                 <div class="search-box">
                     <i class="fas fa-search"></i>
@@ -377,7 +379,7 @@
                 <div class="profile-card">
                     <h2>User Profile</h2>
                     <img id="profilePreview" src="https://via.placeholder.com/150" class="profile-img">
-                    
+
                     <div class="input-group">
                         <label>Your Name</label>
                         <input type="text" id="profileName" placeholder="Enter full name">
@@ -430,6 +432,21 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // Unique user ID for profile data
+        let currentUserId = null;
+
+        // Get a unique ID for the current user (e.g., based on device or login)
+        // For this example, we'll simulate a unique ID. In a real app, you'd use Firebase Authentication.
+        function getUniqueUserId() {
+            let uid = localStorage.getItem('uniqueUserId');
+            if (!uid) {
+                uid = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('uniqueUserId', uid);
+            }
+            return uid;
+        }
+        currentUserId = getUniqueUserId();
+
         // Backup static games in case Firebase is empty
         const defaultGames = [
             { id: "g1", name: "Ludo Master", onlineCount: 18, iconUrl: "https://i.ibb.co/L5tNn9G/ludo.png", gameUrl: "https://poki.com/en/ludo" },
@@ -459,7 +476,7 @@
         // 3. Render Games to HTML
         function renderGames(gamesArray) {
             const listDiv = document.getElementById('game-list');
-            listDiv.innerHTML = ''; 
+            listDiv.innerHTML = '';
 
             if(gamesArray.length === 0) {
                 listDiv.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-muted);">No Game Found!</p>';
@@ -469,7 +486,7 @@
             gamesArray.forEach(game => {
                 const img = game.iconUrl || 'https://via.placeholder.com/60';
                 const online = game.onlineCount || 0;
-                
+
                 listDiv.innerHTML += `
                     <div class="game-item">
                         <img src="${img}" alt="${game.name}">
@@ -506,28 +523,41 @@
             const navHome = document.getElementById('nav-home');
             const navProfile = document.getElementById('nav-profile');
 
+            // Hide all tabs
+            home.classList.add('hidden');
+            profile.classList.add('hidden');
+
+            // Remove active class from all nav items
+            navHome.classList.remove('active');
+            navProfile.classList.remove('active');
+
+            // Show the selected tab and set active class
             if(tab === 'home') {
                 home.classList.remove('hidden');
-                profile.classList.add('hidden');
                 navHome.classList.add('active');
-                navProfile.classList.remove('active');
-            } else {
-                home.classList.add('hidden');
+            } else if (tab === 'profile') {
                 profile.classList.remove('hidden');
-                navHome.classList.remove('active');
                 navProfile.classList.add('active');
             }
         }
 
         // 7. Profile Logic (Load, Preview Image, Save)
         function loadProfile() {
-            db.ref('profile').on('value', (snap) => {
+            if (!currentUserId) return;
+            db.ref('profiles/' + currentUserId).on('value', (snap) => {
                 const data = snap.val();
                 if(data) {
                     document.getElementById('profileName').value = data.name || '';
                     if(data.imageUrl) {
                         document.getElementById('profilePreview').src = data.imageUrl;
+                    } else {
+                        // Default image if no URL is found
+                        document.getElementById('profilePreview').src = 'https://via.placeholder.com/150';
                     }
+                } else {
+                    // Clear fields if no profile data for this user
+                    document.getElementById('profileName').value = '';
+                    document.getElementById('profilePreview').src = 'https://via.placeholder.com/150';
                 }
             });
         }
@@ -544,10 +574,24 @@
         });
 
         function saveProfile() {
-            const name = document.getElementById('profileName').value;
-            const imgUrl = document.getElementById('profilePreview').src;
-            db.ref('profile').set({ name: name, imageUrl: imgUrl }).then(() => {
+            const name = document.getElementById('profileName').value.trim();
+            const imageUrl = document.getElementById('profilePreview').src;
+
+            if (!currentUserId) {
+                alert("Could not get a unique user ID. Profile not saved.");
+                return;
+            }
+
+            db.ref('profiles/' + currentUserId).set({
+                name: name,
+                imageUrl: imageUrl
+            }).then(() => {
                 alert("Profile Saved!");
+                // Optional: Show interstitial ad after saving profile
+                showInterstitialAd();
+            }).catch(error => {
+                console.error("Error saving profile: ", error);
+                alert("Failed to save profile. Please try again.");
             });
         }
 
@@ -565,50 +609,130 @@
 
         function initTheme() {
             let savedTheme = localStorage.getItem('theme');
+            // Default to dark mode if no saved theme or if savedTheme is 'dark'
             if(savedTheme === 'light') {
                 document.body.classList.add('light-mode');
                 document.getElementById('themeToggle').checked = false;
             } else {
                 document.body.classList.remove('light-mode');
-                document.getElementById('themeToggle').checked = true; // Default Dark
+                document.getElementById('themeToggle').checked = true;
             }
         }
+
+        // AdMob Functions
+        const ADMOB_APP_OPEN_AD_ID = 'ca-app-pub-3113275088766608/5298176282';
+        const ADMOB_BANNER_AD_ID = 'ca-app-pub-3113275088766608/8812801925';
+        const ADMOB_INTERSTITIAL_AD_ID = 'ca-app-pub-3113275088766608/2247393575';
+        const ADMOB_REWARDED_INTERSTITIAL_AD_ID = 'ca-app-pub-3113275088766608/7308148564'; // Rewarded Interstitial
+
+        async function setupAds() {
+            try {
+                // 1. AdMob ko shuru karein
+                await capacitorCommunityAdmob.AdMob.initialize({
+                    // testingDevices: ['YOUR_TEST_DEVICE_HASH'], // Uncomment and add your test device hash if needed
+                    // initializeForConfiguration: true, // Consider setting this to true for more advanced configurations
+                });
+                console.log('AdMob initialized');
+
+                // 2. App Open Ad (Optional: if you want to show an ad immediately on app launch)
+                // await capacitorCommunityAdmob.AdMob.showAd({
+                //     adId: ADMOB_APP_OPEN_AD_ID,
+                //     adUnit: 'app_open',
+                //     isTesting: false,
+                //     // You might need to configure the 'app_open' ad type in your AdMob settings
+                //     // For app open ads, often they are loaded and displayed automatically by the system
+                // });
+
+                // 3. Banner Ad dikhayein
+                await capacitorCommunityAdmob.AdMob.showBanner({
+                    adId: ADMOB_BANNER_AD_ID, // Aapki Banner ID
+                    position: 'BOTTOM_CENTER', // Ad niche dikhega
+                    margin: 0,
+                    isTesting: false // Live ads ke liye false rakhein
+                });
+                console.log('Banner ad shown');
+
+                // 4. Interstitial Ad (Full Screen) Load karein
+                await capacitorCommunityAdmob.AdMob.prepareInterstitial({
+                    adId: ADMOB_INTERSTITIAL_AD_ID, // Aapki Interstitial ID
+                    isTesting: false
+                });
+                console.log('Interstitial ad prepared');
+
+                // 5. Rewarded Interstitial Ad Load karein (if you plan to use it)
+                await capacitorCommunityAdmob.AdMob.prepareRewardInterstitial({
+                    adId: ADMOB_REWARDED_INTERSTITIAL_AD_ID,
+                    isTesting: false
+                });
+                console.log('Rewarded interstitial ad prepared');
+
+            } catch (error) {
+                console.error('Error setting up AdMob:', error);
+            }
+        }
+
+        // Function to show Interstitial Ad
+        async function showInterstitialAd() {
+            try {
+                const result = await capacitorCommunityAdmob.AdMob.showInterstitial();
+                console.log('Interstitial ad shown:', result);
+            } catch (error) {
+                console.error('Error showing interstitial ad:', error);
+            }
+        }
+
+        // Function to show Rewarded Interstitial Ad
+        async function showRewardedInterstitialAd() {
+            try {
+                const result = await capacitorCommunityAdmob.AdMob.showRewardInterstitial();
+                console.log('Rewarded interstitial ad shown:', result);
+                // Handle ad completion and reward logic here
+                if (result && result.adResult === 'COMPLETED') {
+                    alert('You earned a reward!');
+                    // Grant reward to the user
+                }
+            } catch (error) {
+                console.error('Error showing rewarded interstitial ad:', error);
+            }
+        }
+
+        // To play a game, you might want to show an interstitial ad first
+        function playGameWithAd(url, name) {
+            // Show interstitial ad before opening the game
+            showInterstitialAd().then(() => {
+                // Once the ad is closed (or if it failed to show), play the game
+                if(url && url !== "#") {
+                    window.open(url, '_blank');
+                } else {
+                    alert(`Opening ${name}...`);
+                }
+            });
+        }
+
 
         // Init App On Load
         window.onload = () => {
             initTheme();
             loadGamesFromDB();
-            loadProfile();
+            loadProfile(); // Load profile for the current user
+            // Ensure we have a user ID before setting up ads
+            if (currentUserId) {
+                setupAds(); // Setup ads only when deviceready has fired or locally available
+            }
         };
-        // AdMob Plugin ko import karein (agar module use kar rahe hain)
-// Normal HTML mein direct Capacitor community plugin ka use hota hai
 
-async function setupAds() {
-    // 1. AdMob ko shuru karein
-    await capacitorCommunityAdmob.AdMob.initialize();
+        // Use deviceready event for Capacitor apps to ensure plugins are ready
+        document.addEventListener('deviceready', () => {
+            console.log('Device is ready.');
+            // Ensure currentUserId is set before calling setupAds
+            currentUserId = getUniqueUserId();
+            setupAds();
+        });
 
-    // 2. Banner Ad dikhayein
-    await capacitorCommunityAdmob.AdMob.showBanner({
-        adId: 'ca-app-pub-3113275088766608/8812801925', // Aapki Banner ID
-        position: 'BOTTOM_CENTER', // Ad niche dikhega
-        margin: 0,
-        isTesting: false // Live ads ke liye false rakhein
-    });
-
-    // 3. Interstitial Ad (Full Screen) Load karein
-    await capacitorCommunityAdmob.AdMob.prepareInterstitial({
-        adId: 'ca-app-pub-3113275088766608/2247393575', // Aapki Interstitial ID
-        isTesting: false
-    });
-}
-
-// Interstitial Ad dikhane ke liye function (ise button click par chalayein)
-async function showFullAd() {
-    await capacitorCommunityAdmob.AdMob.showInterstitial();
-}
-
-// App start hote hi ads setup karein
-document.addEventListener('deviceready', setupAds);
+        // Initial call to switch to home tab
+        document.addEventListener('DOMContentLoaded', () => {
+            switchTab('home');
+        });
 
     </script>
 </body>
